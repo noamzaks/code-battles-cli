@@ -6,13 +6,33 @@ Firestore client implementation inspired by https://medium.com/@bobthomas295/cli
 
 import os
 import json
-from typing import Dict, List, Optional
+import shutil
+import subprocess
+import sys
+from typing import Dict, List, Optional, Union
+from dataclasses import dataclass
 
 import requests
 from google.oauth2.credentials import Credentials
 from google.cloud.firestore import Client as FirestoreClient
 from rich.prompt import Prompt
-from code_battles_cli.logging import console, log
+from code_battles_cli.log import console, log
+
+
+@dataclass
+class LogEntry:
+    step: int
+    text: str
+    color: str
+    player_index: Optional[int]
+
+
+@dataclass
+class SimulationResults:
+    winner_index: int
+    winner: str
+    steps: int
+    logs: List[LogEntry]
 
 
 class Client:
@@ -117,6 +137,79 @@ class Client:
     def set_bots(self, bots: Dict[str, str], merge=True) -> None:
         """
         Sets the bots in the website to the specified bots.
-        Doesn't remove any bot unless `merge` is `False`, in which case only bots specified in `bots` will remain.
+        Doesn't remove any bot unless ``merge`` is ``False``, in which case only bots specified in ``bots`` will remain.
         """
         self.document.set(bots, merge)
+
+    def run_simulation(
+        self,
+        map: str,
+        bot_filenames: List[str],
+        bot_names: Optional[List[str]] = None,
+        force_download=False,
+        json_output=False,
+    ) -> Union[SimulationResults, str]:
+        """
+        Runs the given simulation without UI locally.
+        If ``bot_names`` is not specified, they will be the filenames without the extension.
+
+        If required (or ``force_download``), this method downloads the simulation code from the website.
+
+        If ``json_output`` is ``True``, returns the JSON string of the results instead.
+        """
+
+        if bot_names is None:
+            bot_names = [
+                os.path.splitext(os.path.basename(filename))[0]
+                for filename in bot_filenames
+            ]
+
+        code_directory = os.path.expanduser(
+            f"~/.cache/code-battles/{''.join([c for c in self.url.removeprefix("https").removesuffix(".web.app") if c.isalnum()])}"
+        )
+
+        if force_download and os.path.exists(code_directory):
+            shutil.rmtree(code_directory)
+
+        if not os.path.exists(code_directory):
+            os.makedirs(code_directory)
+
+            pyscript_configuration = requests.get(self.url + "/config.json").json()
+
+            for url_path, path in pyscript_configuration["files"].items():
+                local_path = os.path.join(
+                    code_directory, *path.replace(".pyi", ".py").split("/")
+                )
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                text = requests.get(self.url + url_path).text
+                with open(local_path, "w") as f:
+                    f.write(text)
+
+        p = subprocess.Popen(
+            [
+                sys.executable,
+                os.path.join(code_directory, "main.py"),
+                map,
+                "-".join(bot_names),
+            ]
+            + [os.path.abspath(f) for f in bot_filenames],
+            env={"PYTHONPATH": os.path.join(code_directory, "code_battles")},
+            stdout=subprocess.PIPE,
+        )
+        p.wait()
+        output = p.stdout.read().split(b"--- SIMULATION FINISHED ---")[-1]
+        if json_output:
+            return output.decode()
+
+        output = json.loads(output)
+        return SimulationResults(
+            output["winner_index"],
+            output["winner"],
+            output["steps"],
+            [
+                LogEntry(
+                    entry["step"], entry["text"], entry["color"], entry["player_index"]
+                )
+                for entry in output["logs"]
+            ],
+        )

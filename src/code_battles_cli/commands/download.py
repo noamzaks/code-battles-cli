@@ -4,7 +4,7 @@ from typing import Optional
 import click
 
 from code_battles_cli.api import Client
-from code_battles_cli.logging import log
+from code_battles_cli.log import log
 
 
 @click.command()
