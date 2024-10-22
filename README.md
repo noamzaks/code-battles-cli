@@ -40,7 +40,13 @@ You can update a bot in the website by running `code-battles upload bots/example
 
 If you want to choose a custom bot name, you can run `code-battles upload bots/example.py -n myamazingbot`.
 
-## Usage in Scripts
+## Running a simulation
+
+You can run a simulation by running `code-battles run NYC bots/example.py bots/another_example.py`, where `NYC` is an example of a map.
+
+You will probably find the scripting API nicer to work with if you want to run simulations locally.
+
+## Usage in scripts
 
 You can import the `code_battles_cli.api` module and utilize its `Client` class to hack Code Battles for your needs!
 
@@ -52,6 +58,7 @@ from code_battles_cli.api import Client
 client = Client()
 
 print(client.get_bots())
+print(client.run_simulation("NYC", ["bots/example.py", "bots/another_example.py"]))
 ```
 
 # Roadmap
