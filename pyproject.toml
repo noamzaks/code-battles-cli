@@ -1,0 +1,29 @@
+[project]
+name = "code-battles-cli"
+version = "0.1.1"
+description = "A CLI for competitors in any Code Battles event!"
+dependencies = [
+    "requests>=2.32.3",
+    "google-cloud-firestore>=2.19.0",
+    "rich>=13.9.3",
+    "click>=8.1.7",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[project.scripts]
+"code-battles" = "code_battles_cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/code_battles_cli"]
