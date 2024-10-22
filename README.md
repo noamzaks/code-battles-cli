@@ -65,5 +65,5 @@ print(client.run_simulation("NYC", ["bots/example.py", "bots/another_example.py"
 
 -   [x] Download bots.
 -   [x] Upload bots.
--   [ ] Run no-UI simulations locally.
+-   [x] Run no-UI simulations locally.
 -   [x] Be usable in scripts.
