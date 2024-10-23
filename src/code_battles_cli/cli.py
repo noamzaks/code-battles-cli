@@ -4,6 +4,7 @@ import click
 
 
 @click.group()
+@click.version_option(message="%(prog)s %(version)s")
 def cli():
     pass
 
