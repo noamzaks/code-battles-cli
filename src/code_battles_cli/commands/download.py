@@ -15,6 +15,7 @@ from code_battles_cli.log import log
 @click.option("-p", "--password", help="Your team's password")
 @click.option(
     "--dump-credentials",
+    is_flag=True,
     default=True,
     show_default=True,
     help="Dump the URL, username and password to a `code-battles.json` file",

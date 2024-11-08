@@ -4,19 +4,27 @@ Code Battles Python Client API
 Firestore client implementation inspired by https://medium.com/@bobthomas295/client-side-authentication-with-python-firestore-and-firebase-352e484a2634
 """
 
+import base64
+import datetime
+import logging
+import gzip
 import os
 import json
 import shutil
 import subprocess
 import sys
-from typing import Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 from dataclasses import dataclass
 
 import requests
 from google.oauth2.credentials import Credentials
 from google.cloud.firestore import Client as FirestoreClient
 from rich.prompt import Prompt
-from code_battles_cli.log import console, log
+from code_battles_cli.log import console, log, progress
+
+
+SIMULATION_FINISHED_MARK = b"--- SIMULATION FINISHED ---"
+SIMULATION_STEP_MARK = b"__CODE_BATTLES_ADVANCE_STEP"
 
 
 @dataclass
@@ -33,6 +41,53 @@ class SimulationResults:
     winner: str
     steps: int
     logs: List[LogEntry]
+
+
+@dataclass
+class Simulation:
+    map: str
+    player_names: str
+    game: str
+    version: str
+    timestamp: datetime.datetime
+    logs: list
+    decisions: List[bytes]
+    seed: int
+
+    def dump(self):
+        return base64.b64encode(
+            gzip.compress(
+                json.dumps(
+                    {
+                        "map": self.map,
+                        "playerNames": self.player_names,
+                        "game": self.game,
+                        "version": self.version,
+                        "timestamp": self.timestamp.isoformat(),
+                        "logs": self.logs,
+                        "decisions": [
+                            base64.b64encode(decision).decode()
+                            for decision in self.decisions
+                        ],
+                        "seed": self.seed,
+                    }
+                ).encode()
+            )
+        ).decode()
+
+    @staticmethod
+    def load(file: str):
+        contents: Dict[str, Any] = json.loads(gzip.decompress(base64.b64decode(file)))
+        return Simulation(
+            contents["map"],
+            contents["playerNames"],
+            contents["game"],
+            contents["version"],
+            datetime.datetime.fromisoformat(contents["timestamp"]),
+            contents["logs"],
+            [base64.b64decode(decision) for decision in contents["decisions"]],
+            contents["seed"],
+        )
 
 
 class Client:
@@ -141,13 +196,89 @@ class Client:
         """
         self.document.set(bots, merge)
 
+    def _possibly_download(self, force_download=False):
+        code_directory = os.path.expanduser(
+            f"~/.cache/code-battles/{''.join([c for c in self.url.removeprefix("https").removesuffix(".web.app") if c.isalnum()])}"
+        )
+
+        if force_download and os.path.exists(code_directory):
+            shutil.rmtree(code_directory)
+
+        if not os.path.exists(code_directory):
+            os.makedirs(code_directory)
+
+            with console.status("[blue]Fetching configuration from game website..."):
+                pyscript_configuration = requests.get(self.url + "/config.json").json()
+                logging.info(
+                    f"Fetched configuration containing {len(pyscript_configuration["files"])} game files."
+                )
+
+            with progress:
+                progress_id = progress.add_task(
+                    "[blue]Fetching game files...",
+                    total=len(pyscript_configuration["files"]),
+                )
+
+                for url_path, path in pyscript_configuration["files"].items():
+                    if not path.endswith(".py"):
+                        continue
+
+                    local_path = os.path.join(code_directory, *path.split("/"))
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    text = requests.get(self.url + url_path).text
+                    with open(local_path, "w") as f:
+                        f.write(text)
+                    progress.update(progress_id, advance=1)
+                progress.update(progress_id, visible=False)
+
+            logging.info("Finished fetching game files.")
+
+        return code_directory
+
+    def _get_simulation_output(
+        self,
+        p: subprocess.Popen,
+        json_output=False,
+        on_step: Optional[Callable[[], None]] = None,
+    ) -> Union[SimulationResults, str]:
+        while True:
+            line: bytes = p.stdout.readline()
+            line = line.strip()
+            if line == SIMULATION_FINISHED_MARK:
+                break
+            elif line == SIMULATION_STEP_MARK:
+                if on_step is not None:
+                    on_step()
+            elif len(line) != 0:
+                logging.info(line.decode())
+
+        output: bytes = p.stdout.read()
+        if json_output:
+            return output.decode()
+
+        output = json.loads(output)
+        return SimulationResults(
+            output["winner_index"],
+            output["winner"],
+            output["steps"],
+            [
+                LogEntry(
+                    entry["step"], entry["text"], entry["color"], entry["player_index"]
+                )
+                for entry in output["logs"]
+            ],
+        )
+
     def run_simulation(
         self,
         map: str,
         bot_filenames: List[str],
         bot_names: Optional[List[str]] = None,
+        seed: Optional[int] = None,
         force_download=False,
         json_output=False,
+        on_step: Optional[Callable[[], None]] = None,
+        output_file: Optional[str] = None,
     ) -> Union[SimulationResults, str]:
         """
         Runs the given simulation without UI locally.
@@ -164,52 +295,53 @@ class Client:
                 for filename in bot_filenames
             ]
 
-        code_directory = os.path.expanduser(
-            f"~/.cache/code-battles/{''.join([c for c in self.url.removeprefix("https").removesuffix(".web.app") if c.isalnum()])}"
-        )
-
-        if force_download and os.path.exists(code_directory):
-            shutil.rmtree(code_directory)
-
-        if not os.path.exists(code_directory):
-            os.makedirs(code_directory)
-
-            pyscript_configuration = requests.get(self.url + "/config.json").json()
-
-            for url_path, path in pyscript_configuration["files"].items():
-                local_path = os.path.join(
-                    code_directory, *path.replace(".pyi", ".py").split("/")
-                )
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                text = requests.get(self.url + url_path).text
-                with open(local_path, "w") as f:
-                    f.write(text)
+        code_directory = self._possibly_download(force_download=force_download)
 
         p = subprocess.Popen(
             [
                 sys.executable,
                 os.path.join(code_directory, "main.py"),
+                "simulate",
+                str(seed),
+                str(output_file),
                 map,
                 "-".join(bot_names),
             ]
             + [os.path.abspath(f) for f in bot_filenames],
             env={"PYTHONPATH": os.path.join(code_directory, "code_battles")},
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
-        p.wait()
-        output = p.stdout.read().split(b"--- SIMULATION FINISHED ---")[-1]
-        if json_output:
-            return output.decode()
 
-        output = json.loads(output)
-        return SimulationResults(
-            output["winner_index"],
-            output["winner"],
-            output["steps"],
+        return self._get_simulation_output(p, json_output, on_step)
+
+    def run_simulation_from_file(
+        self,
+        simulation_file: str,
+        force_download=False,
+        json_output=False,
+        on_step: Optional[Callable[[], None]] = None,
+    ) -> Union[SimulationResults, str]:
+        """
+        Runs the given simulation without UI locally from the given simulation file.
+
+        If required (or ``force_download``), this method downloads the simulation code from the website.
+
+        If ``json_output`` is ``True``, returns the JSON string of the results instead.
+        """
+
+        code_directory = self._possibly_download(force_download=force_download)
+
+        p = subprocess.Popen(
             [
-                LogEntry(
-                    entry["step"], entry["text"], entry["color"], entry["player_index"]
-                )
-                for entry in output["logs"]
+                sys.executable,
+                os.path.join(code_directory, "main.py"),
+                "simulate-from-file",
+                simulation_file,
             ],
+            env={"PYTHONPATH": os.path.join(code_directory, "code_battles")},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
+
+        return self._get_simulation_output(p, json_output, on_step)

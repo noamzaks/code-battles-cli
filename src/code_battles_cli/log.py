@@ -1,3 +1,4 @@
+import os
 import logging
 
 from rich.console import Console
@@ -25,7 +26,7 @@ def setup_logging():
     FORMAT = "%(message)s"
 
     logging.basicConfig(
-        level=logging.INFO,
+        level=os.environ.get("CODE_BATTLES_LOG_LEVEL", "INFO"),
         format=FORMAT,
         datefmt="[%X]",
         handlers=[RichHandler(console=console, markup=True)],
