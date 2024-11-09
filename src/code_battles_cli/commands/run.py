@@ -13,7 +13,9 @@ from code_battles_cli.log import log, progress
 @click.argument("map", required=False)
 @click.argument("bots", nargs=-1)
 @click.option(
-    "-U", "--url", help="The competitions URL, for example https://code-battles.web.app"
+    "-U",
+    "--url",
+    help="The competition's URL, for example https://code-battles.web.app",
 )
 @click.option("-u", "--username", help="Your team's username, for example mercedes")
 @click.option("-p", "--password", help="Your team's password")
