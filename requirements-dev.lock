@@ -39,10 +39,16 @@ grpcio-status==1.67.0
     # via google-api-core
 idna==3.10
     # via requests
+iniconfig==2.1.0
+    # via pytest
 markdown-it-py==3.0.0
     # via rich
 mdurl==0.1.2
     # via markdown-it-py
+packaging==25.0
+    # via pytest
+pluggy==1.5.0
+    # via pytest
 proto-plus==1.24.0
     # via google-api-core
     # via google-cloud-firestore
@@ -59,6 +65,7 @@ pyasn1-modules==0.4.1
     # via google-auth
 pygments==2.18.0
     # via rich
+pytest==8.3.5
 requests==2.32.3
     # via code-battles-cli
     # via google-api-core
