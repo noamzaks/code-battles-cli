@@ -197,9 +197,14 @@ class Client:
         self.document.set(bots, merge)
 
     def _possibly_download(self, force_download=False):
-        code_directory = os.path.expanduser(
-            f"~/.cache/code-battles/{''.join([c for c in self.url.removeprefix("https").removesuffix(".web.app") if c.isalnum()])}"
+        directory_name = "".join(
+            [
+                c
+                for c in self.url.removeprefix("https").removesuffix(".web.app")
+                if c.isalnum()
+            ]
         )
+        code_directory = os.path.expanduser(f"~/.cache/code-battles/{directory_name}")
 
         if force_download and os.path.exists(code_directory):
             shutil.rmtree(code_directory)
@@ -210,7 +215,7 @@ class Client:
             with console.status("[blue]Fetching configuration from game website..."):
                 pyscript_configuration = requests.get(self.url + "/config.json").json()
                 logging.info(
-                    f"Fetched configuration containing {len(pyscript_configuration["files"])} game files."
+                    f"Fetched configuration containing {len(pyscript_configuration['files'])} game files."
                 )
 
             with progress:
