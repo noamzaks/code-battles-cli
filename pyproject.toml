@@ -1,6 +1,6 @@
 [project]
 name = "code-battles-cli"
-version = "1.1.0"
+version = "1.2.0"
 description = "A CLI for competitors in any Code Battles event!"
 dependencies = [
     "requests>=2.32.3",
@@ -20,9 +20,7 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = [
-    "pytest>=8.3.5",
-]
+dev-dependencies = ["pytest>=8.3.5"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
