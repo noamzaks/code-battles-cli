@@ -42,7 +42,7 @@ If you want to choose a custom bot name, you can run `code-battles upload bots/e
 
 ## Running a simulation
 
-You can run a simulation by running `code-battles run NYC bots/example.py bots/another_example.py`, where `NYC` is an example of a map.
+You can run a simulation by running `code-battles run '{"map": "NYC"}' bots/example.py bots/another_example.py`, where `NYC` is an example of a map.
 
 You will probably find the scripting API nicer to work with if you want to run simulations locally.
 

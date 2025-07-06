@@ -28,6 +28,18 @@ SIMULATION_FINISHED_MARK = b"--- SIMULATION FINISHED ---"
 SIMULATION_STEP_MARK = b"__CODE_BATTLES_ADVANCE_STEP"
 
 
+def normalize(url: str):
+    if url.startswith("https"):
+        url = url[5:]
+
+    try:
+        url = url[: url.index(".web.app")]
+    except ValueError:
+        pass
+
+    return url
+
+
 class SimulationException(Exception):
     def __init__(self, stderr: bytes, exit_code: int):
         self.stderr = stderr
@@ -213,11 +225,7 @@ class Client:
 
     def _possibly_download(self, force_download=False):
         directory_name = "".join(
-            [
-                c
-                for c in self.url.removeprefix("https").removesuffix(".web.app")
-                if c.isalnum() or c == "-"
-            ]
+            [c for c in normalize(self.url) if c.isalnum() or c == "-"]
         )
         code_directory = os.path.expanduser(f"~/.cache/code-battles/{directory_name}")
 
@@ -242,6 +250,9 @@ class Client:
         on_step: Optional[Callable[[], None]] = None,
     ) -> Union[SimulationResults, str]:
         while True:
+            if p.poll() is not None:
+                raise SimulationException(p.stderr.read(), p.returncode)
+
             line: bytes = p.stdout.readline()
             line = line.strip()
             if line == SIMULATION_FINISHED_MARK:
@@ -310,7 +321,11 @@ class Client:
                 os.path.join(code_directory, "packed.py"),
                 "simulate",
                 str(seed),
-                str(os.path.abspath(output_file)),
+                str(
+                    os.path.abspath(output_file)
+                    if output_file is not None
+                    else output_file
+                ),
                 json.dumps(parameters),
                 "-".join(bot_names),
             ]

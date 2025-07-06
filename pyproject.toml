@@ -15,7 +15,7 @@ requires-python = ">= 3.8"
 "code-battles" = "code_battles_cli:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.26.3"]
 build-backend = "hatchling.build"
 
 [tool.rye]

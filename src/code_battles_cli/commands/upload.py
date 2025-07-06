@@ -45,4 +45,5 @@ def upload(
 
     client = Client(url, username, password, dump_credentials)
     client.set_bots({bot_name: bot_code})
-    log.info(f"{bot_code.count('\n') + 1} lines of code were uploaded as '{bot_name}'.")
+    line_count = bot_code.count("\n") + 1
+    log.info(f"{line_count} lines of code were uploaded as '{bot_name}'.")
