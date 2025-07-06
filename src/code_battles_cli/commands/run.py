@@ -1,6 +1,7 @@
-import time
+import json
 import logging
 import sys
+import time
 from typing import List, Optional, Tuple
 
 import click
@@ -10,7 +11,7 @@ from code_battles_cli.log import log, progress
 
 
 @click.command()
-@click.argument("map", required=False)
+@click.argument("parameters", required=False)
 @click.argument("bots", nargs=-1)
 @click.option(
     "-U",
@@ -53,7 +54,7 @@ def run(
     username: Optional[str],
     password: Optional[str],
     dump_credentials: bool,
-    map: str,
+    parameters: Optional[str],
     bots: Tuple[str],
     force_download: bool,
     seed: Optional[int],
@@ -72,18 +73,18 @@ def run(
             progress.update(progress_id, advance=1)
 
         if simulation_file is not None:
-            assert (
-                map is None
-            ), "The simulation's map is given from the simulation file!"
-            assert (
-                len(bots) == 0
-            ), "The simulation's bots are given from the simulation file!"
-            assert (
-                seed is None
-            ), "The simulation's seed is given from the simulation file!"
-            assert (
-                output_file is None
-            ), "Shouldn't dump simualtion file from existing simulation file!"
+            assert parameters is None, (
+                "The simulation's map is given from the simulation file!"
+            )
+            assert len(bots) == 0, (
+                "The simulation's bots are given from the simulation file!"
+            )
+            assert seed is None, (
+                "The simulation's seed is given from the simulation file!"
+            )
+            assert output_file is None, (
+                "Shouldn't dump simualtion file from existing simulation file!"
+            )
 
             with open(simulation_file, "r") as f:
                 simulation_text = f.read()
@@ -92,7 +93,7 @@ def run(
                 f"Detected simulation file of {simulation.game} {simulation.version}"
             )
             logging.info(
-                f"Simulation happened in {simulation.map} between {', '.join(simulation.player_names)} with seed {simulation.seed}"
+                f"Simulation happened in {simulation.parameters.get('map')} between {', '.join(simulation.player_names)} with seed {simulation.seed}"
             )
             logging.info(f"Simulation contains {len(simulation.decisions)} decisions")
             progress.update(progress_id, total=len(simulation.decisions) - 1)
@@ -104,7 +105,7 @@ def run(
             assert len(bots) > 0, "Bots are required for simulation!"
 
             results = client.run_simulation(
-                map,
+                json.loads(parameters),
                 list(bots),
                 seed=seed,
                 force_download=False,
@@ -113,4 +114,4 @@ def run(
             )
     print("The winner is", results.winner, "after", results.steps, "steps.")
     end = time.time()
-    log.info(f"Simulation took {(end - start) :.2f}s.")
+    log.info(f"Simulation took {(end - start):.2f}s.")

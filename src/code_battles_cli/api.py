@@ -6,25 +6,38 @@ Firestore client implementation inspired by https://medium.com/@bobthomas295/cli
 
 import base64
 import datetime
-import logging
 import gzip
-import os
 import json
+import logging
+import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Callable, Dict, List, Optional, Union
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import requests
-from google.oauth2.credentials import Credentials
 from google.cloud.firestore import Client as FirestoreClient
+from google.oauth2.credentials import Credentials
 from rich.prompt import Prompt
-from code_battles_cli.log import console, log, progress
 
+from code_battles_cli.log import console, log
 
 SIMULATION_FINISHED_MARK = b"--- SIMULATION FINISHED ---"
 SIMULATION_STEP_MARK = b"__CODE_BATTLES_ADVANCE_STEP"
+
+
+class SimulationException(Exception):
+    def __init__(self, stderr: bytes, exit_code: int):
+        self.stderr = stderr
+        self.exit_code = exit_code
+
+    def __str__(self):
+        return (
+            f"Simulation failed with exit code {self.exit_code}. Output:\n"
+            + self.stderr.decode()
+        )
 
 
 @dataclass
@@ -45,12 +58,13 @@ class SimulationResults:
 
 @dataclass
 class Simulation:
-    map: str
+    parameters: Dict[str, str]
     player_names: str
     game: str
     version: str
     timestamp: datetime.datetime
     logs: list
+    alerts: list
     decisions: List[bytes]
     seed: int
 
@@ -59,12 +73,13 @@ class Simulation:
             gzip.compress(
                 json.dumps(
                     {
-                        "map": self.map,
+                        "parameters": self.parameters,
                         "playerNames": self.player_names,
                         "game": self.game,
                         "version": self.version,
                         "timestamp": self.timestamp.isoformat(),
                         "logs": self.logs,
+                        "alerts": self.alerts,
                         "decisions": [
                             base64.b64encode(decision).decode()
                             for decision in self.decisions
@@ -79,12 +94,15 @@ class Simulation:
     def load(file: str):
         contents: Dict[str, Any] = json.loads(gzip.decompress(base64.b64decode(file)))
         return Simulation(
-            contents["map"],
+            contents["parameters"]
+            if "parameters" in contents
+            else {"map": contents["map"]},
             contents["playerNames"],
             contents["game"],
             contents["version"],
             datetime.datetime.fromisoformat(contents["timestamp"]),
             contents["logs"],
+            contents["alerts"],
             [base64.b64decode(decision) for decision in contents["decisions"]],
             contents["seed"],
         )
@@ -162,9 +180,6 @@ class Client:
         configuration = requests.get(self.url + "/firebase-configuration.json").json()
         self.firebase_api_key: str = configuration["apiKey"]
         self.firebase_project_id: str = configuration["projectId"]
-        # print(
-        #     f"Got API Key: '{self.firebase_api_key}' and Project ID: '{self.firebase_project_id}'"
-        # )
 
     def _sign_in(self, email_domain="gmail.com"):
         try:
@@ -201,7 +216,7 @@ class Client:
             [
                 c
                 for c in self.url.removeprefix("https").removesuffix(".web.app")
-                if c.isalnum()
+                if c.isalnum() or c == "-"
             ]
         )
         code_directory = os.path.expanduser(f"~/.cache/code-battles/{directory_name}")
@@ -212,31 +227,11 @@ class Client:
         if not os.path.exists(code_directory):
             os.makedirs(code_directory)
 
-            with console.status("[blue]Fetching configuration from game website..."):
-                pyscript_configuration = requests.get(self.url + "/config.json").json()
-                logging.info(
-                    f"Fetched configuration containing {len(pyscript_configuration['files'])} game files."
-                )
-
-            with progress:
-                progress_id = progress.add_task(
-                    "[blue]Fetching game files...",
-                    total=len(pyscript_configuration["files"]),
-                )
-
-                for url_path, path in pyscript_configuration["files"].items():
-                    if not path.endswith(".py"):
-                        continue
-
-                    local_path = os.path.join(code_directory, *path.split("/"))
-                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                    text = requests.get(self.url + url_path).text
-                    with open(local_path, "w") as f:
-                        f.write(text)
-                    progress.update(progress_id, advance=1)
-                progress.update(progress_id, visible=False)
-
-            logging.info("Finished fetching game files.")
+            with console.status("[blue]Fetching packed Python file..."):
+                packed_file = requests.get(self.url + "/scripts/packed.py").text
+                local_path = Path(code_directory) / "packed.py"
+                local_path.write_text(packed_file)
+                logging.info("Fetched packed Python file.")
 
         return code_directory
 
@@ -262,7 +257,7 @@ class Client:
             return output.decode()
 
         output = json.loads(output)
-        return SimulationResults(
+        result = SimulationResults(
             output["winner_index"],
             output["winner"],
             output["steps"],
@@ -274,9 +269,16 @@ class Client:
             ],
         )
 
+        error: bytes = p.stderr.read()
+        exit_code = p.wait()
+        if exit_code != 0:
+            raise SimulationException(error, exit_code)
+
+        return result
+
     def run_simulation(
         self,
-        map: str,
+        parameters: Dict[str, str],
         bot_filenames: List[str],
         bot_names: Optional[List[str]] = None,
         seed: Optional[int] = None,
@@ -305,11 +307,11 @@ class Client:
         p = subprocess.Popen(
             [
                 sys.executable,
-                os.path.join(code_directory, "main.py"),
+                os.path.join(code_directory, "packed.py"),
                 "simulate",
                 str(seed),
-                str(output_file),
-                map,
+                str(os.path.abspath(output_file)),
+                json.dumps(parameters),
                 "-".join(bot_names),
             ]
             + [os.path.abspath(f) for f in bot_filenames],
@@ -340,7 +342,7 @@ class Client:
         p = subprocess.Popen(
             [
                 sys.executable,
-                os.path.join(code_directory, "main.py"),
+                os.path.join(code_directory, "packed.py"),
                 "simulate-from-file",
                 simulation_file,
             ],
