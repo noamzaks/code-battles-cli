@@ -71,6 +71,7 @@ class SimulationResults:
 @dataclass
 class Simulation:
     parameters: Dict[str, str]
+    statistics: Dict[str, float]
     player_names: str
     game: str
     version: str
@@ -97,6 +98,7 @@ class Simulation:
                             for decision in self.decisions
                         ],
                         "seed": self.seed,
+                        "statistics": self.statistics,
                     }
                 ).encode()
             )
@@ -109,6 +111,7 @@ class Simulation:
             contents["parameters"]
             if "parameters" in contents
             else {"map": contents["map"]},
+            contents.get("statistics", {}),
             contents["playerNames"],
             contents["game"],
             contents["version"],
