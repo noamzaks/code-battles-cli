@@ -69,6 +69,7 @@ class SimulationResults:
     winner: str
     steps: int
     logs: list[LogEntry]
+    statistics: dict[str, float]
 
 
 @dataclass
@@ -285,6 +286,7 @@ class Client:
                 )
                 for entry in output_json["logs"]
             ],
+            output_json.get("statistics", {}),
         )
 
         assert p.stderr is not None
