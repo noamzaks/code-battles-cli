@@ -16,8 +16,6 @@
     🏃 <a href="#getting-started">Getting Started</a>
     &nbsp;&middot&nbsp;
     💡 <a href="#features">Features</a>
-    &nbsp;&middot&nbsp;
-    🚗 <a href="#roadmap">Roadmap</a>
 </p>
 
 # Getting Started
@@ -61,9 +59,6 @@ print(client.get_bots())
 print(client.run_simulation("NYC", ["bots/example.py", "bots/another_example.py"]))
 ```
 
-# Roadmap
+# Development
 
--   [x] Download bots.
--   [x] Upload bots.
--   [x] Run no-UI simulations locally.
--   [x] Be usable in scripts.
+For development, you should set up the pre-commit hooks with `uv run pre-commit install`.
