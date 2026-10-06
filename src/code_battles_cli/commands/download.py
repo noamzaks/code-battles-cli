@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import os
-from typing import Optional
 
 import click
 
@@ -35,18 +36,18 @@ from code_battles_cli.log import log
     help="The directory to download the bots into",
 )
 def download(
-    url: Optional[str],
-    username: Optional[str],
-    password: Optional[str],
+    url: str | None,
+    username: str | None,
+    password: str | None,
     dump_credentials: bool,
-    bot: Optional[str],
+    bot: str | None,
     d: str,
 ) -> None:
     client = Client(url, username, password, dump_credentials)
     bots = client.get_bots()
     if bot is not None:
         if bot not in bots:
-            raise Exception(f"The specified bot '{bot}' does not exist!")
+            raise KeyError(bot)
         bots = {bot: bots[bot]}
 
     if not os.path.exists(d):

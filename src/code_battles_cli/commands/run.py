@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import json
 import logging
 import time
-from typing import Optional, Tuple
 
 import click
 
@@ -49,16 +50,16 @@ from code_battles_cli.log import log, progress
     help="Output file to dump the simulation into",
 )
 def run(
-    url: Optional[str],
-    username: Optional[str],
-    password: Optional[str],
+    url: str | None,
+    username: str | None,
+    password: str | None,
     dump_credentials: bool,
-    parameters: Optional[str],
-    bots: Tuple[str],
+    parameters: str | None,
+    bots: tuple[str],
     force_download: bool,
-    seed: Optional[int],
-    simulation_file: Optional[str],
-    output_file: Optional[str],
+    seed: int | None,
+    simulation_file: str | None,
+    output_file: str | None,
 ) -> None:
     logging.getLogger("rich").setLevel(logging.WARNING)
     client = Client(url, username, password, dump_credentials)

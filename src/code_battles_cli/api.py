@@ -4,6 +4,8 @@ Code Battles Python Client API
 Firestore client implementation inspired by https://medium.com/@bobthomas295/client-side-authentication-with-python-firestore-and-firebase-352e484a2634
 """
 
+from __future__ import annotations
+
 import base64
 import datetime
 import gzip
@@ -15,7 +17,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Literal
 
 import requests
 from google.cloud.firestore import Client as FirestoreClient
@@ -58,7 +60,7 @@ class LogEntry:
     step: int
     text: str
     color: str
-    player_index: Optional[int]
+    player_index: int | None
 
 
 @dataclass
@@ -66,20 +68,20 @@ class SimulationResults:
     winner_index: int
     winner: str
     steps: int
-    logs: List[LogEntry]
+    logs: list[LogEntry]
 
 
 @dataclass
 class Simulation:
-    parameters: Dict[str, str]
-    statistics: Dict[str, float]
+    parameters: dict[str, str]
+    statistics: dict[str, float]
     player_names: str
     game: str
     version: str
     timestamp: datetime.datetime
     logs: list[Any]
     alerts: list[Any]
-    decisions: List[bytes]
+    decisions: list[bytes]
     seed: int
 
     def dump(self) -> str:
@@ -106,8 +108,8 @@ class Simulation:
         ).decode()
 
     @staticmethod
-    def load(file: str) -> "Simulation":
-        contents: Dict[str, Any] = json.loads(gzip.decompress(base64.b64decode(file)))
+    def load(file: str) -> Simulation:
+        contents: dict[str, Any] = json.loads(gzip.decompress(base64.b64decode(file)))
         return Simulation(
             contents["parameters"]
             if "parameters" in contents
@@ -127,9 +129,9 @@ class Simulation:
 class Client:
     def __init__(
         self,
-        url: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
+        url: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
         dump_credentials: bool = True,
     ):
         """
@@ -152,14 +154,11 @@ class Client:
 
     def _get_credentials(self) -> None:
         if os.path.exists("code-battles.json"):
-            try:
-                with open("code-battles.json", "r") as f:
-                    configuration = json.load(f)
-                self.url = configuration["url"]
-                self.username = configuration["username"]
-                self.password = configuration["password"]
-            except Exception:
-                pass
+            with open("code-battles.json", "r") as f:
+                configuration = json.load(f)
+            self.url = configuration["url"]
+            self.username = configuration["username"]
+            self.password = configuration["password"]
 
         if (
             not hasattr(self, "url")
@@ -175,7 +174,7 @@ class Client:
 
             self.username = Prompt.ask("Enter your team's username", console=console)
 
-            if not self.username == self.username.lower():
+            if self.username != self.username.lower():
                 log.warning("Your username should most likely be lowercased.")
 
             self.password = Prompt.ask(
@@ -207,22 +206,22 @@ class Client:
                     "returnSecureToken": True,
                 },
             ).json()
-        except Exception:
-            raise Exception(
+        except Exception as e:
+            raise RuntimeError(
                 "Sign in failed! Make sure the username and password are correct."
-            )
+            ) from e
 
         self.credentials = Credentials(response["idToken"], response["refreshToken"])
         self.client = FirestoreClient(self.firebase_project_id, self.credentials)
         self.document = self.client.document(f"bots/{self.username}")
 
-    def get_bots(self) -> Dict[str, str]:
+    def get_bots(self) -> dict[str, str]:
         """Returns a mapping from a bot's name to their Python code."""
         result = self.document.get().to_dict()
         assert result is not None
         return result
 
-    def set_bots(self, bots: Dict[str, str], merge: bool = True) -> None:
+    def set_bots(self, bots: dict[str, str], merge: bool = True) -> None:
         """
         Sets the bots in the website to the specified bots.
         Doesn't remove any bot unless ``merge`` is ``False``, in which case only bots specified in ``bots`` will remain.
@@ -253,8 +252,8 @@ class Client:
         self,
         p: subprocess.Popen[bytes],
         json_output: bool = False,
-        on_step: Optional[Callable[[], None]] = None,
-    ) -> Union[SimulationResults, str]:
+        on_step: Callable[[], None] | None = None,
+    ) -> SimulationResults | str:
         while True:
             if p.poll() is not None:
                 assert p.stderr is not None
@@ -299,40 +298,40 @@ class Client:
     @overload
     def run_simulation(
         self,
-        parameters: Dict[str, str],
-        bot_filenames: List[str],
-        bot_names: Optional[List[str]] = None,
-        seed: Optional[int] = None,
+        parameters: dict[str, str],
+        bot_filenames: list[str],
+        bot_names: list[str] | None = None,
+        seed: int | None = None,
         force_download: bool = False,
         json_output: Literal[False] = False,
-        on_step: Optional[Callable[[], None]] = None,
-        output_file: Optional[str] = None,
+        on_step: Callable[[], None] | None = None,
+        output_file: str | None = None,
     ) -> SimulationResults: ...
 
     @overload
     def run_simulation(
         self,
-        parameters: Dict[str, str],
-        bot_filenames: List[str],
-        bot_names: Optional[List[str]] = None,
-        seed: Optional[int] = None,
+        parameters: dict[str, str],
+        bot_filenames: list[str],
+        bot_names: list[str] | None = None,
+        seed: int | None = None,
         force_download: bool = False,
         json_output: Literal[True] = True,
-        on_step: Optional[Callable[[], None]] = None,
-        output_file: Optional[str] = None,
+        on_step: Callable[[], None] | None = None,
+        output_file: str | None = None,
     ) -> str: ...
 
     def run_simulation(
         self,
-        parameters: Dict[str, str],
-        bot_filenames: List[str],
-        bot_names: Optional[List[str]] = None,
-        seed: Optional[int] = None,
+        parameters: dict[str, str],
+        bot_filenames: list[str],
+        bot_names: list[str] | None = None,
+        seed: int | None = None,
         force_download: bool = False,
         json_output: bool = False,
-        on_step: Optional[Callable[[], None]] = None,
-        output_file: Optional[str] = None,
-    ) -> Union[SimulationResults, str]:
+        on_step: Callable[[], None] | None = None,
+        output_file: str | None = None,
+    ) -> SimulationResults | str:
         """
         Runs the given simulation without UI locally.
         If ``bot_names`` is not specified, they will be the filenames without the extension.
@@ -377,8 +376,8 @@ class Client:
         simulation_file: str,
         force_download: bool = False,
         json_output: bool = False,
-        on_step: Optional[Callable[[], None]] = None,
-    ) -> Union[SimulationResults, str]:
+        on_step: Callable[[], None] | None = None,
+    ) -> SimulationResults | str:
         """
         Runs the given simulation without UI locally from the given simulation file.
 

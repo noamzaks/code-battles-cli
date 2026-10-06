@@ -1,1 +1,1 @@
-from code_battles_cli.cli import main
+from code_battles_cli.cli import main as main

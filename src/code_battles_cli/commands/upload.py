@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import os
-from typing import Optional
 
 import click
 
@@ -33,10 +34,10 @@ from code_battles_cli.log import log
 )
 def upload(
     file: str,
-    name: Optional[str],
-    url: Optional[str],
-    username: Optional[str],
-    password: Optional[str],
+    name: str | None,
+    url: str | None,
+    username: str | None,
+    password: str | None,
     dump_credentials: bool,
 ) -> None:
     bot_name = name if name is not None else os.path.splitext(os.path.basename(file))[0]
