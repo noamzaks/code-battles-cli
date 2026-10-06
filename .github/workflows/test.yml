@@ -11,11 +11,9 @@ jobs:
         steps:
             - name: Clone the repository
               uses: actions/checkout@v4
-            - name: Install the latest version of rye
-              uses: eifinger/setup-rye@v4
-            - name: Pin Python version
-              run: rye pin ${{ matrix.version }}
-            - name: Sync rye
-              run: rye sync
+            - name: Install uv with all available options
+              uses: astral-sh/setup-uv@v10.1.0
+            - name: Sync uv
+              run: uv sync
             - name: Run tests
-              run: rye test
+              run: uv run pytest
