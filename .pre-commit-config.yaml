@@ -9,3 +9,5 @@ repos:
       hooks:
           - id: mypy
             args: [--strict]
+            additional_dependencies:
+                [requests, google-cloud-firestore, rich, click]

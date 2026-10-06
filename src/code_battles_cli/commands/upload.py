@@ -38,7 +38,7 @@ def upload(
     username: Optional[str],
     password: Optional[str],
     dump_credentials: bool,
-):
+) -> None:
     bot_name = name if name is not None else os.path.splitext(os.path.basename(file))[0]
     with open(file, "r") as f:
         bot_code = f.read()

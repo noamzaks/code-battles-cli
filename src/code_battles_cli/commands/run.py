@@ -1,8 +1,7 @@
 import json
 import logging
-import sys
 import time
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import click
 
@@ -60,7 +59,7 @@ def run(
     seed: Optional[int],
     simulation_file: Optional[str],
     output_file: Optional[str],
-):
+) -> None:
     logging.getLogger("rich").setLevel(logging.WARNING)
     client = Client(url, username, password, dump_credentials)
     client._possibly_download(force_download)
@@ -69,7 +68,7 @@ def run(
     with progress:
         progress_id = progress.add_task("[green]Simulating...", total=None)
 
-        def on_step():
+        def on_step() -> None:
             progress.update(progress_id, advance=1)
 
         if simulation_file is not None:
@@ -103,6 +102,7 @@ def run(
         else:
             assert map is not None, "Map is required for simulation!"
             assert len(bots) > 0, "Bots are required for simulation!"
+            assert parameters is not None, "Parameters are required for simulation!"
 
             results = client.run_simulation(
                 json.loads(parameters),

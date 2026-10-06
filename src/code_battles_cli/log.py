@@ -1,11 +1,11 @@
-import os
 import logging
+import os
 
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn
 from rich.table import Column
 from rich.traceback import install
-from rich.logging import RichHandler
 
 log = logging.getLogger("rich")
 console = Console()
@@ -22,7 +22,7 @@ progress = Progress(
 )
 
 
-def setup_logging():
+def setup_logging() -> None:
     FORMAT = "%(message)s"
 
     logging.basicConfig(

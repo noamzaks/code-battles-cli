@@ -15,12 +15,13 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 import requests
 from google.cloud.firestore import Client as FirestoreClient
 from google.oauth2.credentials import Credentials
 from rich.prompt import Prompt
+from typing_extensions import overload
 
 from code_battles_cli.log import console, log
 
@@ -28,7 +29,7 @@ SIMULATION_FINISHED_MARK = b"--- SIMULATION FINISHED ---"
 SIMULATION_STEP_MARK = b"__CODE_BATTLES_ADVANCE_STEP"
 
 
-def normalize(url: str):
+def normalize(url: str) -> str:
     if url.startswith("https"):
         url = url[5:]
 
@@ -45,7 +46,7 @@ class SimulationException(Exception):
         self.stderr = stderr
         self.exit_code = exit_code
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"Simulation failed with exit code {self.exit_code}. Output:\n"
             + self.stderr.decode()
@@ -76,12 +77,12 @@ class Simulation:
     game: str
     version: str
     timestamp: datetime.datetime
-    logs: list
-    alerts: list
+    logs: list[Any]
+    alerts: list[Any]
     decisions: List[bytes]
     seed: int
 
-    def dump(self):
+    def dump(self) -> str:
         return base64.b64encode(
             gzip.compress(
                 json.dumps(
@@ -105,7 +106,7 @@ class Simulation:
         ).decode()
 
     @staticmethod
-    def load(file: str):
+    def load(file: str) -> "Simulation":
         contents: Dict[str, Any] = json.loads(gzip.decompress(base64.b64decode(file)))
         return Simulation(
             contents["parameters"]
@@ -129,7 +130,7 @@ class Client:
         url: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
-        dump_credentials=True,
+        dump_credentials: bool = True,
     ):
         """
         Creates a client for getting and setting the bots for a Code Battles hosted at `url`
@@ -149,14 +150,14 @@ class Client:
         if dump_credentials:
             self._dump_credentials()
 
-    def _get_credentials(self):
+    def _get_credentials(self) -> None:
         if os.path.exists("code-battles.json"):
             try:
                 with open("code-battles.json", "r") as f:
                     configuration = json.load(f)
-                self.url: str = configuration["url"]
-                self.username: str = configuration["username"]
-                self.password: str = configuration["password"]
+                self.url = configuration["url"]
+                self.username = configuration["username"]
+                self.password = configuration["password"]
             except Exception:
                 pass
 
@@ -181,7 +182,7 @@ class Client:
                 "Enter your team's password", console=console, password=True
             )
 
-    def _dump_credentials(self):
+    def _dump_credentials(self) -> None:
         with open("code-battles.json", "w") as f:
             json.dump(
                 {"url": self.url, "username": self.username, "password": self.password},
@@ -191,12 +192,12 @@ class Client:
             "Credentials were dumped to `code-battles.json`. Make sure other teams don't have access to this file!"
         )
 
-    def _get_firebase_data(self):
+    def _get_firebase_data(self) -> None:
         configuration = requests.get(self.url + "/firebase-configuration.json").json()
         self.firebase_api_key: str = configuration["apiKey"]
         self.firebase_project_id: str = configuration["projectId"]
 
-    def _sign_in(self, email_domain="gmail.com"):
+    def _sign_in(self, email_domain: str = "gmail.com") -> None:
         try:
             response = requests.post(
                 f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={self.firebase_api_key}",
@@ -217,16 +218,18 @@ class Client:
 
     def get_bots(self) -> Dict[str, str]:
         """Returns a mapping from a bot's name to their Python code."""
-        return self.document.get().to_dict()
+        result = self.document.get().to_dict()
+        assert result is not None
+        return result
 
-    def set_bots(self, bots: Dict[str, str], merge=True) -> None:
+    def set_bots(self, bots: Dict[str, str], merge: bool = True) -> None:
         """
         Sets the bots in the website to the specified bots.
         Doesn't remove any bot unless ``merge`` is ``False``, in which case only bots specified in ``bots`` will remain.
         """
         self.document.set(bots, merge)
 
-    def _possibly_download(self, force_download=False):
+    def _possibly_download(self, force_download: bool = False) -> str:
         directory_name = "".join(
             [c for c in normalize(self.url) if c.isalnum() or c == "-"]
         )
@@ -248,14 +251,16 @@ class Client:
 
     def _get_simulation_output(
         self,
-        p: subprocess.Popen,
-        json_output=False,
+        p: subprocess.Popen[bytes],
+        json_output: bool = False,
         on_step: Optional[Callable[[], None]] = None,
     ) -> Union[SimulationResults, str]:
         while True:
             if p.poll() is not None:
+                assert p.stderr is not None
                 raise SimulationException(p.stderr.read(), p.returncode)
 
+            assert p.stdout is not None
             line: bytes = p.stdout.readline()
             line = line.strip()
             if line == SIMULATION_FINISHED_MARK:
@@ -270,19 +275,20 @@ class Client:
         if json_output:
             return output.decode()
 
-        output = json.loads(output)
+        output_json = json.loads(output)
         result = SimulationResults(
-            output["winner_index"],
-            output["winner"],
-            output["steps"],
+            output_json["winner_index"],
+            output_json["winner"],
+            output_json["steps"],
             [
                 LogEntry(
                     entry["step"], entry["text"], entry["color"], entry["player_index"]
                 )
-                for entry in output["logs"]
+                for entry in output_json["logs"]
             ],
         )
 
+        assert p.stderr is not None
         error: bytes = p.stderr.read()
         exit_code = p.wait()
         if exit_code != 0:
@@ -290,14 +296,40 @@ class Client:
 
         return result
 
+    @overload
     def run_simulation(
         self,
         parameters: Dict[str, str],
         bot_filenames: List[str],
         bot_names: Optional[List[str]] = None,
         seed: Optional[int] = None,
-        force_download=False,
-        json_output=False,
+        force_download: bool = False,
+        json_output: Literal[False] = False,
+        on_step: Optional[Callable[[], None]] = None,
+        output_file: Optional[str] = None,
+    ) -> SimulationResults: ...
+
+    @overload
+    def run_simulation(
+        self,
+        parameters: Dict[str, str],
+        bot_filenames: List[str],
+        bot_names: Optional[List[str]] = None,
+        seed: Optional[int] = None,
+        force_download: bool = False,
+        json_output: Literal[True] = True,
+        on_step: Optional[Callable[[], None]] = None,
+        output_file: Optional[str] = None,
+    ) -> str: ...
+
+    def run_simulation(
+        self,
+        parameters: Dict[str, str],
+        bot_filenames: List[str],
+        bot_names: Optional[List[str]] = None,
+        seed: Optional[int] = None,
+        force_download: bool = False,
+        json_output: bool = False,
         on_step: Optional[Callable[[], None]] = None,
         output_file: Optional[str] = None,
     ) -> Union[SimulationResults, str]:
@@ -343,8 +375,8 @@ class Client:
     def run_simulation_from_file(
         self,
         simulation_file: str,
-        force_download=False,
-        json_output=False,
+        force_download: bool = False,
+        json_output: bool = False,
         on_step: Optional[Callable[[], None]] = None,
     ) -> Union[SimulationResults, str]:
         """

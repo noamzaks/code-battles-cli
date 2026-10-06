@@ -41,7 +41,7 @@ def download(
     dump_credentials: bool,
     bot: Optional[str],
     d: str,
-):
+) -> None:
     client = Client(url, username, password, dump_credentials)
     bots = client.get_bots()
     if bot is not None:
