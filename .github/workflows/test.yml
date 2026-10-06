@@ -10,7 +10,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         steps:
             - name: Clone the repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
             - name: Install uv with all available options
               uses: astral-sh/setup-uv@v10.1.0
             - name: Sync uv
