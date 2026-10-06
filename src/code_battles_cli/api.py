@@ -255,7 +255,7 @@ class Client:
         on_step: Callable[[], None] | None = None,
     ) -> SimulationResults | str:
         while True:
-            if p.poll() is not None:
+            if p.poll() is not None and p.returncode != 0:
                 assert p.stderr is not None
                 raise SimulationException(p.stderr.read(), p.returncode)
 
