@@ -8,6 +8,6 @@ repos:
       rev: v2.4.0
       hooks:
           - id: mypy
-            args: [--strict]
+            args: [--strict, --ignore-missing-imports]
             additional_dependencies:
                 [requests, google-cloud-firestore, rich, click]

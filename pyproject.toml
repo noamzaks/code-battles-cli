@@ -1,6 +1,6 @@
 [project]
 name = "code-battles-cli"
-version = "1.2.0"
+version = "1.2.1"
 description = "A CLI for competitors in any Code Battles event!"
 dependencies = [
     "requests>=2.32.3",
@@ -19,7 +19,12 @@ requires = ["uv_build>=0.10,<0.13"]
 build-backend = "uv_build"
 
 [dependency-groups]
-dev = ["mypy>=1.14.1", "pre-commit>=3.5.0", "ruff>=0.16.10"]
+dev = [
+    "mypy>=1.14.1",
+    "pre-commit>=3.5.0",
+    "pytest>=8.3.5",
+    "ruff>=0.16.10",
+]
 
 [tool.mypy]
 untyped_calls_exclude = "google"
