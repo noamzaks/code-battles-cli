@@ -262,6 +262,15 @@ class Client:
 
             assert p.stdout is not None
             line: bytes = p.stdout.readline()
+
+            # EOF
+            if len(line) == 0:
+                assert p.stderr is not None
+                stderr = p.stderr.read()
+                raise SimulationException(
+                    stderr or b"The simulation exited before finishing.", p.wait()
+                )
+
             line = line.strip()
             if line == SIMULATION_FINISHED_MARK:
                 break
