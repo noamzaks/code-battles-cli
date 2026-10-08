@@ -1,6 +1,6 @@
 [project]
 name = "code-battles-cli"
-version = "1.2.6"
+version = "1.2.7"
 description = "A CLI for competitors in any Code Battles event!"
 dependencies = [
     "requests>=2.32.3",
