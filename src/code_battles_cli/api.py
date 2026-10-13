@@ -21,6 +21,7 @@ from typing import Any, Callable, Literal
 
 import requests
 from google.cloud.firestore import Client as FirestoreClient
+from google.cloud.firestore import DocumentReference
 from google.oauth2.credentials import Credentials
 from rich.prompt import Prompt
 from typing_extensions import overload
@@ -147,11 +148,8 @@ class Client:
             self.username = username
             self.password = password
 
-        self._get_firebase_data()
-        self._sign_in()
-
-        if dump_credentials:
-            self._dump_credentials()
+        self._document: DocumentReference | None = None
+        self._should_dump_credentials = dump_credentials
 
     def _get_credentials(self) -> None:
         if os.path.exists("code-battles.json"):
@@ -214,7 +212,19 @@ class Client:
 
         self.credentials = Credentials(response["idToken"], response["refreshToken"])
         self.client = FirestoreClient(self.firebase_project_id, self.credentials)
-        self.document = self.client.document(f"bots/{self.username}")
+        self._document = self.client.document(f"bots/{self.username}")
+
+        if self._should_dump_credentials:
+            self._dump_credentials()
+
+    @property
+    def document(self) -> DocumentReference:
+        """The team's bots document, signing in first if necessary."""
+        if self._document is None:
+            self._get_firebase_data()
+            self._sign_in()
+        assert self._document is not None
+        return self._document
 
     def get_bots(self) -> dict[str, str]:
         """Returns a mapping from a bot's name to their Python code."""
